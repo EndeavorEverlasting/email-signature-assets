@@ -1,134 +1,148 @@
 #!/usr/bin/env python3
-"""Generate Title_Loading_Ellipsis_Down.gif with sequential fading dots.
+"""Generate the accepted Work title-loading cue deterministically.
 
-Email-safe indexed GIF: dots appear left-to-right, then a down-right arrow
-pulses so the cue (left/logo column) aims at the obsolete title on the right.
+Contract: work-title-loading-cue-v2
+- 128x43 px canvas matching the managed Toga logo column.
+- Compact left-side sequential ellipsis.
+- Steep down-right arrow accepted against the frozen combined-signature fixture.
+- Exact SHA-256 is pinned; drift fails closed.
 """
 
 from __future__ import annotations
 
 import argparse
+import hashlib
+import math
 from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageSequence
 
-WIDTH = 96
-HEIGHT = 56
+CONTRACT_VERSION = "work-title-loading-cue-v2"
+WIDTH = 128
+HEIGHT = 43
 FRAME_MS = 140
+FRAME_COUNT = 10
+EXPECTED_SHA256 = "e3c950e7d278f285ad5a7be8d9ed0bb219b0aa730ca34e80fd0d0fc371736ee5"
 
-# Fixed palette indices (email-safe, opaque).
-# 0=bg, 1=ink full, 2=ink mid, 3=ink dim, 4=ink ghost
+DOT_RADIUS = 2
+DOT_Y = 7
+DOT_XS = (28, 48, 68)
+ARROW_START = (114, 1)
+ARROW_END = (125, 40)
+ARROW_HEAD = 7
+ARROW_WIDTH = 3
+ARROW_ANGLE_DEG = math.degrees(
+    math.atan2(ARROW_END[1] - ARROW_START[1], ARROW_END[0] - ARROW_START[0])
+)
+
+# Indexed, opaque palette for email-client portability.
+# 0 background, 1..4 dot levels, 5..7 arrow levels.
 PALETTE_RGB = [
-    236, 238, 241,  # 0 bg
-    107, 116, 181,  # 1 full
-    150, 156, 199,  # 2 mid
-    193, 197, 217,  # 3 dim
-    214, 217, 229,  # 4 ghost
+    255, 255, 255,
+    100, 114, 180,
+    145, 154, 199,
+    190, 196, 218,
+    220, 223, 235,
+    190, 196, 218,
+    208, 212, 228,
+    226, 229, 239,
 ]
 while len(PALETTE_RGB) < 768:
     PALETTE_RGB.extend([0, 0, 0])
 
-DOT_RADIUS = 4
-DOT_Y = 14
-DOT_XS = (22, 42, 62)
-# Down-right arrow: stem from mid-left toward lower-right title column.
-ARROW_START = (40, 26)
-ARROW_END = (78, 50)
-ARROW_HEAD = 7
+DOT_FULL, DOT_MID, DOT_DIM, DOT_GHOST, OFF = 1, 2, 3, 4, 0
+ARROW_FULL, ARROW_MID, ARROW_GHOST = 5, 6, 7
 
-# Named opacity steps mapped to palette indices.
-FULL, MID, DIM, GHOST, OFF = 1, 2, 3, 4, 0
+FRAME_PLAN = (
+    ((DOT_GHOST, OFF, OFF), ARROW_GHOST),
+    ((DOT_FULL, OFF, OFF), ARROW_GHOST),
+    ((DOT_FULL, DOT_FULL, OFF), ARROW_MID),
+    ((DOT_FULL, DOT_FULL, DOT_FULL), ARROW_MID),
+    ((DOT_FULL, DOT_FULL, DOT_FULL), ARROW_FULL),
+    ((DOT_MID, DOT_MID, DOT_MID), ARROW_FULL),
+    ((DOT_DIM, DOT_DIM, DOT_DIM), ARROW_FULL),
+    ((DOT_GHOST, DOT_GHOST, DOT_GHOST), ARROW_MID),
+    ((OFF, OFF, OFF), ARROW_MID),
+    ((OFF, OFF, OFF), ARROW_GHOST),
+)
 
 
-def draw_dot(draw: ImageDraw.ImageDraw, x: int, y: int, color_idx: int) -> None:
+def draw_dot(draw: ImageDraw.ImageDraw, x: int, color_idx: int) -> None:
     if color_idx == OFF:
         return
     draw.ellipse(
-        (x - DOT_RADIUS, y - DOT_RADIUS, x + DOT_RADIUS, y + DOT_RADIUS),
+        (x - DOT_RADIUS, DOT_Y - DOT_RADIUS, x + DOT_RADIUS, DOT_Y + DOT_RADIUS),
         fill=color_idx,
     )
 
 
 def draw_arrow(draw: ImageDraw.ImageDraw, color_idx: int) -> None:
-    """Down-right chevron aiming from the logo column toward the title column."""
     if color_idx == OFF:
         return
-    x0, y0 = ARROW_START
-    x1, y1 = ARROW_END
-    # Thick stem via short perpendicular offsets (indexed palette; no antialias).
-    for dx, dy in ((0, 0), (1, 0), (0, 1), (-1, 0), (0, -1)):
-        draw.line((x0 + dx, y0 + dy, x1 + dx, y1 + dy), fill=color_idx, width=1)
-    # Arrow head pointing down-right.
-    draw.polygon(
-        [
-            (x1, y1),
-            (x1 - ARROW_HEAD, y1 - 2),
-            (x1 - 2, y1 - ARROW_HEAD),
-        ],
-        fill=color_idx,
+    draw.line((*ARROW_START, *ARROW_END), fill=color_idx, width=ARROW_WIDTH)
+    shaft_angle = math.atan2(
+        ARROW_END[1] - ARROW_START[1], ARROW_END[0] - ARROW_START[0]
     )
+    for offset_deg in (28, -28):
+        head_angle = shaft_angle + math.pi + math.radians(offset_deg)
+        x2 = round(ARROW_END[0] + math.cos(head_angle) * ARROW_HEAD)
+        y2 = round(ARROW_END[1] + math.sin(head_angle) * ARROW_HEAD)
+        draw.line((*ARROW_END, x2, y2), fill=color_idx, width=ARROW_WIDTH)
 
 
 def make_frame(dot_levels: tuple[int, int, int], arrow_level: int) -> Image.Image:
-    img = Image.new("P", (WIDTH, HEIGHT), 0)
-    img.putpalette(PALETTE_RGB)
-    draw = ImageDraw.Draw(img)
+    image = Image.new("P", (WIDTH, HEIGHT), 0)
+    image.putpalette(PALETTE_RGB)
+    draw = ImageDraw.Draw(image)
     for x, level in zip(DOT_XS, dot_levels):
-        draw_dot(draw, x, DOT_Y, level)
+        draw_dot(draw, x, level)
     draw_arrow(draw, arrow_level)
-    return img
+    return image
 
 
-def build_frames() -> list[Image.Image]:
-    """Classic loading ellipsis: ., .., ..., hold, arrow pulse, soft reset."""
-    return [
-        make_frame((GHOST, OFF, OFF), GHOST),
-        make_frame((FULL, OFF, OFF), DIM),
-        make_frame((FULL, FULL, OFF), DIM),
-        make_frame((FULL, FULL, FULL), MID),
-        make_frame((FULL, FULL, FULL), FULL),  # hold + arrow strong
-        make_frame((MID, MID, MID), FULL),
-        make_frame((DIM, DIM, DIM), FULL),  # arrow still leading
-        make_frame((GHOST, GHOST, GHOST), MID),
-        make_frame((OFF, OFF, OFF), DIM),
-        make_frame((OFF, OFF, OFF), GHOST),
-    ]
+def sha256_path(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def assert_sequential(path: Path) -> None:
-    with Image.open(path) as im:
-        n = getattr(im, "n_frames", 1)
-        if n < 6:
-            raise SystemExit(f"expected >=6 frames, got {n}")
-        samples: list[tuple[int, int, int, int]] = []
-        for i, frame in enumerate(ImageSequence.Iterator(im)):
-            rgba = frame.convert("RGBA")
-            samples.append(
-                (
-                    i,
-                    rgba.getpixel((DOT_XS[0], DOT_Y))[0],
-                    rgba.getpixel((DOT_XS[1], DOT_Y))[0],
-                    rgba.getpixel((DOT_XS[2], DOT_Y))[0],
-                )
+def assert_contract(path: Path) -> None:
+    digest = sha256_path(path)
+    if digest != EXPECTED_SHA256:
+        raise SystemExit(
+            f"deterministic output drift: expected {EXPECTED_SHA256}, got {digest}"
+        )
+    with Image.open(path) as image:
+        if image.size != (WIDTH, HEIGHT):
+            raise SystemExit(f"expected {(WIDTH, HEIGHT)}, got {image.size}")
+        if getattr(image, "n_frames", 1) != FRAME_COUNT:
+            raise SystemExit(
+                f"expected {FRAME_COUNT} frames, got {getattr(image, 'n_frames', 1)}"
             )
-        f1 = samples[1]
-        f2 = samples[2]
-        f3 = samples[3]
-        if not (f1[1] < f1[2] and f1[1] < f1[3]):
-            raise SystemExit(f"frame1 must light only first dot: {samples}")
-        if not (f2[1] <= f2[2] + 5 and f2[2] < f2[3]):
-            raise SystemExit(f"frame2 must light first two dots: {samples}")
-        if not (abs(f3[1] - f3[2]) < 8 and abs(f3[2] - f3[3]) < 8):
-            raise SystemExit(f"frame3 must light all three dots: {samples}")
-        if samples[1][1:] == samples[2][1:] == samples[3][1:]:
-            raise SystemExit(f"sequential fade collapsed: {samples}")
+        durations = {
+            int(frame.info.get("duration", image.info.get("duration", 0)))
+            for frame in ImageSequence.Iterator(image)
+        }
+        if durations != {FRAME_MS}:
+            raise SystemExit(f"expected duration {FRAME_MS}ms, got {sorted(durations)}")
+        image.seek(2)
+        frame = image.convert("RGB")
+        dot1 = frame.getpixel((DOT_XS[0], DOT_Y))
+        dot2 = frame.getpixel((DOT_XS[1], DOT_Y))
+        dot3 = frame.getpixel((DOT_XS[2], DOT_Y))
+        if not (
+            dot1[2] > dot1[0]
+            and dot2[2] > dot2[0]
+            and dot3 == (255, 255, 255)
+        ):
+            raise SystemExit(
+                f"frame 2 must show exactly the first two dots: {dot1} {dot2} {dot3}"
+            )
 
 
-def write_gif(out: Path) -> dict[str, object]:
-    frames = build_frames()
-    out.parent.mkdir(parents=True, exist_ok=True)
+def write_gif(output: Path) -> None:
+    frames = [make_frame(dots, arrow) for dots, arrow in FRAME_PLAN]
+    output.parent.mkdir(parents=True, exist_ok=True)
     frames[0].save(
-        out,
+        output,
         save_all=True,
         append_images=frames[1:],
         duration=FRAME_MS,
@@ -136,13 +150,7 @@ def write_gif(out: Path) -> dict[str, object]:
         optimize=False,
         disposal=2,
     )
-    assert_sequential(out)
-    return {
-        "path": str(out),
-        "bytes": out.stat().st_size,
-        "n_frames": len(frames),
-        "duration_ms": FRAME_MS,
-    }
+    assert_contract(output)
 
 
 def main() -> None:
@@ -153,11 +161,20 @@ def main() -> None:
         type=Path,
         default=Path(__file__).resolve().parents[1] / "Title_Loading_Ellipsis_Down.gif",
     )
+    parser.add_argument(
+        "--verify-only",
+        action="store_true",
+        help="Validate an existing --output instead of regenerating it.",
+    )
     args = parser.parse_args()
-    meta = write_gif(args.output)
+    if args.verify_only:
+        assert_contract(args.output)
+    else:
+        write_gif(args.output)
     print(
-        f"wrote {meta['path']} bytes={meta['bytes']} "
-        f"n_frames={meta['n_frames']} duration_ms={meta['duration_ms']}"
+        f"{CONTRACT_VERSION} path={args.output} sha256={sha256_path(args.output)} "
+        f"size={WIDTH}x{HEIGHT} frames={FRAME_COUNT} frame_ms={FRAME_MS} "
+        f"arrow_deg={ARROW_ANGLE_DEG:.3f}"
     )
 
 
