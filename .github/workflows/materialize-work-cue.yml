@@ -1,0 +1,32 @@
+name: Work cue deterministic check
+
+on:
+  pull_request:
+    paths:
+      - 'Title_Loading_Ellipsis_Down.gif'
+      - 'contracts/title-loading-cue.v2.json'
+      - 'requirements.txt'
+      - 'scripts/generate_title_loading_gif.py'
+      - '.github/workflows/materialize-work-cue.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install -r requirements.txt
+      - name: Regenerate accepted cue independently
+        run: python scripts/generate_title_loading_gif.py -o /tmp/Title_Loading_Ellipsis_Down.gif
+      - name: Verify generated and tracked bytes
+        shell: bash
+        run: |
+          python scripts/generate_title_loading_gif.py --verify-only -o /tmp/Title_Loading_Ellipsis_Down.gif
+          python scripts/generate_title_loading_gif.py --verify-only -o Title_Loading_Ellipsis_Down.gif
+          cmp /tmp/Title_Loading_Ellipsis_Down.gif Title_Loading_Ellipsis_Down.gif
