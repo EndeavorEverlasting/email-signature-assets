@@ -24,6 +24,7 @@
     "startPx": [114, 1],
     "endPx": [125, 40],
     "widthPx": 3,
+    "headLengthPx": 7,
     "angleDeg": 74.249,
     "direction": "down-right",
     "semanticTarget": "managed Field Technician glyphs"
