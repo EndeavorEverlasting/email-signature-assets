@@ -1,0 +1,43 @@
+{
+  "schemaVersion": "1.0.0",
+  "contractId": "work-title-loading-cue-v2",
+  "output": "Title_Loading_Ellipsis_Down.gif",
+  "sha256": "e3c950e7d278f285ad5a7be8d9ed0bb219b0aa730ca34e80fd0d0fc371736ee5",
+  "canvas": {
+    "widthPx": 128,
+    "heightPx": 43,
+    "backgroundRgb": [255, 255, 255]
+  },
+  "animation": {
+    "frameCount": 10,
+    "frameDurationMs": 140,
+    "loop": 0
+  },
+  "ellipsis": {
+    "dotCentersPx": [[28, 7], [48, 7], [68, 7]],
+    "radiusPx": 2,
+    "side": "left",
+    "representativeFrame": 2,
+    "representativeFrameVisibleDots": 2
+  },
+  "arrow": {
+    "startPx": [114, 1],
+    "endPx": [125, 40],
+    "widthPx": 3,
+    "angleDeg": 74.249,
+    "direction": "down-right",
+    "semanticTarget": "managed Field Technician glyphs"
+  },
+  "fixtureAcceptance": {
+    "sourceExperiment": "Email-Signature experiments/work-composition iteration 7",
+    "anchorMethod": "Range.getBoundingClientRect",
+    "rayMustIntersect": "managed title glyph box",
+    "rayMustNotIntersect": "managed name glyph box",
+    "targetBandFractionAtTitleStart": 0.55,
+    "titleStartClearanceBelowNamePx": 14.944
+  },
+  "toolchain": {
+    "python": "3.11+",
+    "pillow": "12.3.0"
+  }
+}
