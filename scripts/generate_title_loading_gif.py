@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Generate Title_Loading_Ellipsis_Down.gif with sequential fading dots.
 
-Email-safe indexed GIF: dots appear left-to-right, then the down arrow
-pulses to cue the employer-managed signature block beneath.
+Email-safe indexed GIF: dots appear left-to-right, then a down-right arrow
+pulses so the cue (left/logo column) aims at the obsolete title on the right.
 """
 
 from __future__ import annotations
@@ -29,11 +29,12 @@ while len(PALETTE_RGB) < 768:
     PALETTE_RGB.extend([0, 0, 0])
 
 DOT_RADIUS = 4
-DOT_Y = 16
-DOT_XS = (28, 48, 68)
-ARROW_TOP = 28
-ARROW_BOTTOM = 48
-ARROW_HALF = 8
+DOT_Y = 14
+DOT_XS = (22, 42, 62)
+# Down-right arrow: stem from mid-left toward lower-right title column.
+ARROW_START = (40, 26)
+ARROW_END = (78, 50)
+ARROW_HEAD = 7
 
 # Named opacity steps mapped to palette indices.
 FULL, MID, DIM, GHOST, OFF = 1, 2, 3, 4, 0
@@ -49,15 +50,20 @@ def draw_dot(draw: ImageDraw.ImageDraw, x: int, y: int, color_idx: int) -> None:
 
 
 def draw_arrow(draw: ImageDraw.ImageDraw, color_idx: int) -> None:
+    """Down-right chevron aiming from the logo column toward the title column."""
     if color_idx == OFF:
         return
-    cx = WIDTH // 2
-    draw.rectangle((cx - 2, ARROW_TOP, cx + 2, ARROW_BOTTOM - 8), fill=color_idx)
+    x0, y0 = ARROW_START
+    x1, y1 = ARROW_END
+    # Thick stem via short perpendicular offsets (indexed palette; no antialias).
+    for dx, dy in ((0, 0), (1, 0), (0, 1), (-1, 0), (0, -1)):
+        draw.line((x0 + dx, y0 + dy, x1 + dx, y1 + dy), fill=color_idx, width=1)
+    # Arrow head pointing down-right.
     draw.polygon(
         [
-            (cx, ARROW_BOTTOM),
-            (cx - ARROW_HALF, ARROW_BOTTOM - 10),
-            (cx + ARROW_HALF, ARROW_BOTTOM - 10),
+            (x1, y1),
+            (x1 - ARROW_HEAD, y1 - 2),
+            (x1 - 2, y1 - ARROW_HEAD),
         ],
         fill=color_idx,
     )
@@ -97,27 +103,23 @@ def assert_sequential(path: Path) -> None:
         samples: list[tuple[int, int, int, int]] = []
         for i, frame in enumerate(ImageSequence.Iterator(im)):
             rgba = frame.convert("RGBA")
-            # Sample first / second / third dot centers.
             samples.append(
                 (
                     i,
-                    rgba.getpixel((DOT_XS[0], DOT_Y))[0],  # R of first dot
+                    rgba.getpixel((DOT_XS[0], DOT_Y))[0],
                     rgba.getpixel((DOT_XS[1], DOT_Y))[0],
                     rgba.getpixel((DOT_XS[2], DOT_Y))[0],
                 )
             )
-        # Frame 1: only first dot lit; frame 2: first+second; frame 3: all three.
         f1 = samples[1]
         f2 = samples[2]
         f3 = samples[3]
         if not (f1[1] < f1[2] and f1[1] < f1[3]):
             raise SystemExit(f"frame1 must light only first dot: {samples}")
         if not (f2[1] <= f2[2] + 5 and f2[2] < f2[3]):
-            # first and second similar (lit), third darker (off/bg)
             raise SystemExit(f"frame2 must light first two dots: {samples}")
         if not (abs(f3[1] - f3[2]) < 8 and abs(f3[2] - f3[3]) < 8):
             raise SystemExit(f"frame3 must light all three dots: {samples}")
-        # Ensure early frames are not identical.
         if samples[1][1:] == samples[2][1:] == samples[3][1:]:
             raise SystemExit(f"sequential fade collapsed: {samples}")
 

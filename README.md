@@ -3,7 +3,10 @@
 Public image assets for email signatures.
 
 - `Fading_Set_Notation_Symbol.gif` — Career Presence mathematical brace animation.
-- `Title_Loading_Ellipsis_Down.gif` — Work-signature sequential fading ellipsis (`.` → `..` → `...`) plus downward cue for the employer-managed signature block.
+- `Title_Loading_Ellipsis_Down.gif` — Work-signature sequential fading ellipsis
+  (`.` → `..` → `...`) plus a down-right arrow. In the Work layout the cue sits
+  in the left (~100px) column above the employer logo and aims at the obsolete
+  title on the right.
 
 ## Regenerate the Work cue
 
